@@ -11,7 +11,8 @@ M: фонетический словарь поиск по значению | st
 Src:bytext
 */
 
-var yarxiResource = 'http://yarxi.ru/tsearch.php',
+var mousePosition = {x: null, y: null},
+    yarxiResource = 'http://yarxi.ru/tsearch.php',
     date = new Date(),
     yarxiBlitzId = 'yarxi_blitz_' + date.getTime(),
     blockHandler;
@@ -28,12 +29,12 @@ function translationBlock(id) {
             block.style.top = px(-1000);
             block.style.width = px(300);
             block.style.maxHeight = px(400);
-            block.style.overflowY = 'scroll';
+            block.style.overflowY = 'auto';
             block.className = 'yarxi_blitz';
             return this;
         },
         fill: function (data) {
-            block.innerHTML = data;
+            block.innerHTML = data.substring(1);
             return this;
         },
         show: function (x, y) {
@@ -46,11 +47,14 @@ function translationBlock(id) {
             block.style.top = px(-1000);
             return this;
         },
-        isInjected: function () {
+        injected: function () {
             return block !== undefined;
         },
         block: function() {
             return block;
+        },
+        visible: function() {
+            return block.style.left !== px(-1000);
         },
         inject: function () {
             var shadowRoot,
@@ -75,10 +79,9 @@ function translationBlock(id) {
 blockHandler = translationBlock(yarxiBlitzId);
 
 
-document.querySelector("body").addEventListener('click', function (event) {
-
-    if (event.altKey) {
-        if (!blockHandler.isInjected()) {
+function yarxiBlitz(event) {
+    if (event.keyCode === 116 || event.keyCode === 1077) {
+        if (!blockHandler.injected()) {
             blockHandler.inject();
         }
 
@@ -87,8 +90,8 @@ document.querySelector("body").addEventListener('click', function (event) {
             var xhr = new XMLHttpRequest();
             xhr.onreadystatechange = function () {
                 if (xhr.readyState == 4 && xhr.status == 200) {
-                    blockHandler.fill(xhr.responseText).show(event.pageX, event.pageY);
-                    console.log(document.caretRangeFromPoint(event.pageX, event.pageY));
+                    blockHandler.fill(xhr.responseText).show(mousePosition.x, mousePosition.y);
+                    console.log(document.caretRangeFromPoint(mousePosition.x, mousePosition.y));
                 }
             }
             xhr.open("POST", yarxiResource.replace('%s', text), true);
@@ -97,11 +100,22 @@ document.querySelector("body").addEventListener('click', function (event) {
         }
 
     } else {
-        if (blockHandler.isInjected() && (!event.target.id || event.target.id !== yarxiBlitzId)) {
+        if (blockHandler.injected() && (!event.target.id || event.target.id !== yarxiBlitzId)) {
             blockHandler.hide();
         }
     }
-}, false);
+}
+
+document.querySelector("body").addEventListener('mousemove', function (event) {
+    mousePosition = {x: event.pageX, y: event.pageY};
+}, true);
+document.querySelector("body").addEventListener('click', function (event) {
+    if(blockHandler.injected() && blockHandler.visible())
+        blockHandler.hide();
+});
+document.querySelector("body").addEventListener("keypress", yarxiBlitz);
+
+
 
 
 // function getSelectionText() {
@@ -128,18 +142,3 @@ document.querySelector("body").addEventListener('click', function (event) {
 //   return seltxt;
 // }
 
-// $(".clickable").click(function(e) {
-//     s = window.getSelection();
-//     var range = s.getRangeAt(0);
-//     var node = s.anchorNode;
-//     while (range.toString().indexOf(' ') != 0) {
-//         range.setStart(node, (range.startOffset - 1));
-//     }
-//     range.setStart(node, range.startOffset + 1);
-//     do {
-//         range.setEnd(node, range.endOffset + 1);
-
-//     } while (range.toString().indexOf(' ') == -1 && range.toString().trim() != '' && range.endOffset < node.length);
-//     var str = range.toString().trim();
-//     alert(str);
-// });​

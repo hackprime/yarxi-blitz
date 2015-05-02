@@ -13,7 +13,13 @@
     },
     "web_accessible_resources": [
         "yarxi.original.css",
-        "yarxi.css"
+        "yarxi.css",
+
+        "dia.png",
+        "one.png",
+        "shim.gif",
+        "tarr.png",
+        "tri.png"
     ],
     "content_scripts": [{
         "matches": ["https://*/*", "http://*/*"],
