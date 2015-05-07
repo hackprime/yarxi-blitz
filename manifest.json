@@ -6,6 +6,7 @@
     "description": "Well known japanese-russian interactive dictionary now available in your browser.",
 
     "permissions": [
+        "activeTab",
         "webNavigation"
     ],
     "icons": {
@@ -15,11 +16,11 @@
         "yarxi.original.css",
         "yarxi.css",
 
-        "dia.png",
-        "one.png",
-        "shim.gif",
-        "tarr.png",
-        "tri.png"
+        "img/dia.png",
+        "img/one.png",
+        "img/shim.gif",
+        "img/tarr.png",
+        "img/tri.png"
     ],
     "content_scripts": [{
         "matches": ["https://*/*", "http://*/*"],

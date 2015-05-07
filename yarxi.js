@@ -1,4 +1,6 @@
 /*
+API
+
 search.php
 K: ключи | '505,157,1046'
 R: поиск по чтению | string
@@ -9,15 +11,74 @@ search.php
 R: фонетический словарь поиск по чтению | string
 M: фонетический словарь поиск по значению | string
 Src:bytext
+
+Response keys
+S - несколько иероглифов на выбор
+T - слово
+E - kanji
+A - error
+
+TODO:
+- починить расположение блочка в граничных случаях вызова
+- обработка ключей ответа
+- обработка ошибок (сетевая ошибка, неизвестная ошибка, не удалось ничего найти)
+- сверствать ответ с ключём S (несколько иероглифов)
+- забиндить на alt, ctrl, shift или command
+- Uncaught TypeError: Cannot read property 'getURL' of undefined
 */
 
-var mousePosition = {x: null, y: null},
-    yarxiResource = 'http://yarxi.ru/tsearch.php',
+// Helpers
+function px(value) {
+    return value + 'px';
+}
+
+function transformKanjiLinks(text) {
+    return text.replace(/<a (?:class="kanji" )?href="javascript:onr\(\d+\);">(.)<\/a>/g,
+                        '<span class="kanji" moveto="$1">$1</span>')
+}
+
+function addClass(block, className) {
+    block.className = block.className === '' ? className : block.className + ' ' + className;
+}
+
+function removeClass(block, className) {
+    block.className = block.className.replace(new RegExp('\\b' + className + '\\b\\s?'), '');
+}
+
+function stripTags(text) {
+    return text.replace(/<[^>]+>/g, '');
+}
+
+var yarxiResource = 'http://yarxi.ru/tsearch.php',
     date = new Date(),
     yarxiBlitzId = 'yarxi_blitz_' + date.getTime(),
-    blockHandler;
+    blockHandler,
+    blockLocation = {left: null, top: null},
+    imgUrls = {
+        "img/dia.png": chrome.extension.getURL("img/dia.png"),
+        "img/one.png": chrome.extension.getURL("img/one.png"),
+        "img/shim.gif": chrome.extension.getURL("img/shim.gif"),
+        "img/tarr.png": chrome.extension.getURL("img/tarr.png"),
+        "img/tri.png": chrome.extension.getURL("img/tri.png")
+    }
+    views = {
+        kanjilist: function (responseText) {
+            return transformKanjiLinks(responseText);
+        },
+        kanji: function (responseText) {
+            return transformKanjiLinks(responseText).replace(/(img\/\w+\.png)/g, function (match) {
+                return imgUrls[match];
+            });
 
-function px(value) { return value + 'px'; }
+        },
+        word: function (responseText) {
+            return transformKanjiLinks(responseText);
+        },
+        error: function (responseText) {
+            return responseText;
+        },
+    },
+    codeToView = {S: 'kanjilist', E: 'kanji',  T: 'word', A: 'error'};
 
 function translationBlock(id) {
     var block = undefined;
@@ -33,19 +94,20 @@ function translationBlock(id) {
             block.className = 'yarxi_blitz';
             return this;
         },
-        fill: function (data) {
-            block.innerHTML = data.substring(1);
+        render: function (code, html) {
+            var viewName = codeToView[code];
+            block.className = 'yarxi_blitz yarxi_blitz-' + viewName;
+            block.innerHTML = views[viewName](html);
             return this;
         },
-        show: function (x, y) {
-            block.style.left = px(x);
-            block.style.top = px(y);
-            return this;
+        show: function (location) {
+            location = location || blockLocation;
+            block.style.left = px(location.left);
+            block.style.top = px(location.top);
         },
         hide: function () {
             block.style.left = px(-1000);
             block.style.top = px(-1000);
-            return this;
         },
         injected: function () {
             return block !== undefined;
@@ -67,12 +129,45 @@ function translationBlock(id) {
             shadowRoot = shadowHost.createShadowRoot();
 
             shadowStyle = document.createElement('style');
-            shadowStyle.innerHTML = "@import url('" + chrome.extension.getURL('yarxi.css') + "');@import url('" + chrome.extension.getURL('yarxi.original.css') + "');"
+            shadowStyle.innerHTML = "@import url('" + chrome.extension.getURL('yarxi.css') + "');@import url('" + chrome.extension.getURL('yarxi.original.css') + "');";
             shadowRoot.appendChild(shadowStyle);
 
             shadowRoot.appendChild(this.create().block());
-            return this;
         },
+
+        request: function(text) {
+            var xhr = new XMLHttpRequest(),
+                self = this;
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    self.render(xhr.responseText.substring(0, 1), xhr.responseText.substring(1))
+                        .show(blockLocation);
+                }
+            }
+            xhr.open("POST", yarxiResource.replace('%s', text), true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.send('R=' + text + '&M=&Src=bytext');
+        },
+
+        delegateKanjiLinks: function () {
+            var self = this;
+            block.addEventListener('click', function (event) {
+                console.log('click');
+                var target = event.target,
+                    link;
+
+                while (target !== block) {
+                    console.log([target, block]);
+                    if (target.className && target.className === 'kanji') {
+                        console.log(['found', target.getAttribute('moveto')]);
+                        self.request(target.getAttribute('moveto'));
+                        return;
+                    }
+                    target = target.parentNode;
+                }
+
+            });
+        }
     };
 }
 
@@ -83,20 +178,18 @@ function yarxiBlitz(event) {
     if (event.keyCode === 116 || event.keyCode === 1077) {
         if (!blockHandler.injected()) {
             blockHandler.inject();
+            blockHandler.delegateKanjiLinks();
         }
 
-        var text = window.getSelection().toString();
+        var selection = window.getSelection(),
+            rect = selection.getRangeAt(0).getBoundingClientRect();
+            text = selection.toString();
+
+        blockLocation.left = rect.left + rect.width;
+        blockLocation.top = rect.top
+
         if (text && text.length <= 15) {
-            var xhr = new XMLHttpRequest();
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState == 4 && xhr.status == 200) {
-                    blockHandler.fill(xhr.responseText).show(mousePosition.x, mousePosition.y);
-                    console.log(document.caretRangeFromPoint(mousePosition.x, mousePosition.y));
-                }
-            }
-            xhr.open("POST", yarxiResource.replace('%s', text), true);
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-            xhr.send('R=' + text + '&M=&Src=bytext');
+            blockHandler.request(text);
         }
 
     } else {
@@ -106,39 +199,11 @@ function yarxiBlitz(event) {
     }
 }
 
-document.querySelector("body").addEventListener('mousemove', function (event) {
-    mousePosition = {x: event.pageX, y: event.pageY};
-}, true);
 document.querySelector("body").addEventListener('click', function (event) {
-    if(blockHandler.injected() && blockHandler.visible())
+    var externalBlock = document.getElementById(yarxiBlitzId);
+    if (externalBlock && !externalBlock.contains(event.target)
+            && blockHandler.injected() && blockHandler.visible()) {
         blockHandler.hide();
+    }
 });
-document.querySelector("body").addEventListener("keypress", yarxiBlitz);
-
-
-
-
-// function getSelectionText() {
-//     var text = "";
-//     if (window.getSelection) {
-//         text = window.getSelection().toString();
-//     } else if (document.selection && document.selection.type != "Control") {
-//         text = document.selection.createRange().text;
-//     }
-//     return text;
-// }
-
-// function getSelText() {
-//   var seltxt = '';      // store selected text
-
-//   // get selected text
-//   if (window.getSelection) {
-//     seltxt = window.getSelection();
-//   } else if (document.getSelection) {
-//     seltxt = document.getSelection();
-//   } else if (document.selection) {
-//     seltxt = document.selection.createRange().text;
-//   }
-//   return seltxt;
-// }
-
+document.querySelector("body").addEventListener('keypress', yarxiBlitz);

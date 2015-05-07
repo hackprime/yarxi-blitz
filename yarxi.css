@@ -1,5 +1,19 @@
 .yarxi_blitz {
+    padding: 5px;
     border: 1px solid #210EA6;
     background-color: #D9D9D9;
     box-shadow: #333333 1px 1px 5px 1px;
+}
+
+.yarxi_blitz .kanji:hover {
+    cursor: pointer;
+}
+
+.yarxi_blitz-kanjilist {
+
+}
+.yarxi_blitz-kanjilist div {
+    cursor: pointer;
+    display: inline-block;
+    font-size: 23pt;
 }
