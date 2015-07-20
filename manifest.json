@@ -9,9 +9,9 @@
         "activeTab",
         "webNavigation"
     ],
-    "icons": {
-        "16": "icon16.ico"
-    },
+    // "icons": {
+    //     "16": "icon16.ico"
+    // },
     "web_accessible_resources": [
         "yarxi.original.css",
         "yarxi.css",
@@ -24,7 +24,6 @@
     ],
     "content_scripts": [{
         "matches": ["https://*/*", "http://*/*"],
-        // "css": ["yarxi.css"],
         "js": ["yarxi.js"]
     }]
 }
